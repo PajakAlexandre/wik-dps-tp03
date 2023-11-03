@@ -11,9 +11,6 @@ services:
       - api_network
     deploy:
       replicas: 4
-      placement:
-        constraints:
-          - node.role == worker
 
   nginx:
     image: nginx
@@ -28,3 +25,4 @@ services:
 
 networks:
   api_network:
+    driver: bridge

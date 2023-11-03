@@ -2,49 +2,101 @@ version: '3.8'
 
 services:
   # Service WordPress
-  wordpress:
-    image: wordpress:latest
-    environment:
-      WORDPRESS_DB_HOST: mysql
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
-    ports:
-      - "8080:80"
+  wordpress-service:
+    image: wordpress:php8.0-fpm-alpine
+    restart: always
     depends_on:
-      - mysql
-    networks:
-      - frontend
-      - backend
-
-  # Service MySQL
-  mysql:
-    image: mysql:latest
+      - mariadb
+      - redis
+    expose:
+      - 9000
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
-      MYSQL_PASSWORD: wordpress
+      WORDPRESS_DB_HOST: mariadb
+      WORDPRESS_DB_NAME: ${WP_DB_NAME}
+      WORDPRESS_DB_USER: ${WP_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: ${WP_DB_PREFIX}
+      WORDPRESS_CONFIG_EXTRA:
+        define( 'WP_REDIS_HOST', 'redis' );
+        define( 'WP_REDIS_PORT', 6379 );
+        define( 'COMPRESS_CSS', true );
+        define( 'COMPRESS_SCRIPTS', true );
+        define( 'CONCATENATE_SCRIPTS', true );
+        define( 'ENFORCE_GZIP', true );
+        define( 'AUTOSAVE_INTERVAL', 120 );
+        define( 'WP_POST_REVISIONS', 10);
+        define( 'MEDIA_TRASH', true );
+        define( 'EMPTY_TRASH_DAYS', 30 );
+        define( 'IMAGE_EDIT_OVERWRITE', true );
+        define( 'DISALLOW_FILE_EDIT', true );
+    volumes:
+      - ./wordpress:/var/www/html
+      - ./wordpress.ini:/usr/local/etc/php/conf.d/wordpress.ini
     networks:
-      - backend
+      - wp_network
+
+    links:
+      - mariadb
+
+    deploy:
+        replicas: 4
+
+  # Service MySQL MariaDB (database)
+  mariadb:
+    container_name: mariadb
+    image: mariadb:latest
+    restart: always
+    expose:
+      - 3306
+    environment:
+      MYSQL_DATABASE: ${WP_DB_NAME}
+      MYSQL_USER: ${WP_DB_USER}
+      MYSQL_PASSWORD: ${WP_DB_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - mariadb:/var/lib/mysql
+    networks:
+      - wp_network
 
   # Service Redis (cache)
   redis:
+    container_name: redis
     image: redis:latest
+    restart: always
+    expose:
+      - 6379
+    command:
+      - redis-server
+      - --save 60 1
+      - --loglevel warning
+      - --maxmemory 128mb
+      - --maxmemory-policy allkeys-lru
+    volumes:
+      - redis:/var/lib/redis
+      - redis:/data
     networks:
-      - backend
+        - wp_network
 
   # Service Nginx (reverse proxy)
   nginx:
+    container_name: nginx
     image: nginx:latest
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./wordpress:/var/www/html
     ports:
-      - "80:80"
+      - "8080:80"
     depends_on:
-      - wordpress
+      - wordpress-service
     networks:
-      - frontend
+      - wp_network
+    links:
+      - wordpress-service
+
+volumes:
+    mariadb:
+    redis:
 
 networks:
-  frontend:
-  backend:
+    wp_network:
+        driver: bridge
