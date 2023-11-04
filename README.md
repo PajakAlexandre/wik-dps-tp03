@@ -57,3 +57,7 @@ The updated Rust API code logs the hostname for every request made to the `/ping
    
 3. Access the API: Open your web browser and go to http://localhost:8080/ping.
 4. Monitor the logs: Run `docker compose logs -f` to monitor the logs for the API service and Nginx. As you send requests to the /ping endpoint, observe the logs in the API service to see the hostname of the server handling the request.
+
+## Bonus
+
+[See the bonus README.md](bonus/README.md) for instructions on how to set up a WordPress environment with multiple WordPress instances, a MariaDB database, Redis for caching, and Nginx as a reverse proxy. It is designed for high availability and performance.
